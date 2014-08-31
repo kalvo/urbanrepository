@@ -9,6 +9,8 @@ using System.Windows.Forms;
 using System.Drawing;
 using System.IO;
 
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 
 
 using Rhino;
@@ -551,7 +553,7 @@ namespace UR
 
 
             RhinoApp.WriteLine("");
-            RhinoApp.WriteLine("Date:  2014-07-19C");
+            RhinoApp.WriteLine("Date:  2014-08-31A");
             RhinoApp.WriteLine("Status:  Pre-alpha (Milestone)");
             RhinoApp.WriteLine("Version:  0.0.2");
             RhinoApp.WriteLine("");
@@ -567,9 +569,181 @@ namespace UR
     }
 
 
+
+    public partial class Command_json : Rhino.Commands.Command
+    {
+        public override string EnglishName
+        {
+            get
+            {
+                return "urLoadJson";
+            }
+        }
+
+        protected override Result RunCommand(RhinoDoc doc, RunMode mode)
+        {
+            // Quick and dirty JSON implementation
+
+            string text = System.IO.File.ReadAllText(@"C:\Dropbox\work . Urban Repository (DB)\dev\data structure\v1 Nested.json");
+            
+            // Loading metainformation from file
+
+            MetaObject meta_object = new MetaObject();
+            meta_object.Load(text);
+
+            RhinoApp.WriteLine(meta_object.GetQuality()["GeometryAccurassay"]);
+
+
+            //RhinoApp.WriteLine(text);
+
+
+
+
+
+            return Result.Success;
+
+
+        }
+    }
+
+
     #endregion
 
     #region -- CLASS --
+
+    public class MetaObject
+    {
+
+        /***
+         * 
+            {
+              "Instance": [
+                {
+                  "_Location": {
+                    "_ID": "790BF661-1133-4FD9-865B-38E12FA237F2",
+                    "_CoordinateSystem": "L-Est",
+                    "_HeightSystem": "Balti77",
+                    "_Center3d": [
+                      6588709.8,
+                      543086.57,
+                      4.99
+                    ],
+                    "_Units": "m",
+                    "_Rotation": 2.7182818284
+                  },
+                  "Address": {
+                    "EST": "Viru tänav 3",
+                    "Country": "Estonia",
+                    "City": "Tallinn",
+                    "County": "Tallinn",
+                    "Comment": ""
+                  },
+                  "Info": {
+                    "Authors": [
+                      "John Doe",
+                      "Office"
+                    ],
+                    "Completed": 1986,
+                    "Demolished": null
+                  }
+                }
+              ],
+              "Geometry": {
+                "_ID": "790BF661-1133-4FD9-865B-38E12FA237F3",
+                "File": "name.ext",
+                "Inherit": null,
+                "Quality": {
+                  "_ClosedMesh": false,
+                  "GeometryAccurassay": 10,
+                  "OnSiteVerification":true,
+                  "_Status": "Public",
+                  "Todo": [
+                    ""
+                  ]
+                },
+                "_Units": "cm"
+              },
+              "ChangeLog": [
+                {
+                "_Date": "2014-08-16T15:40:20",
+                "Creator": "Jane Doe",
+                "Contact": "jane_doe@gmail.com",
+                "Comment": ""
+              }
+            ]
+            }
+         * 
+         * */
+
+        private Dictionary<Guid, JObject> _RawInstances = new Dictionary<Guid, JObject>(); // 
+        private JObject _RawGeometery = new JObject();
+        private List<JObject> _RawLog = new List<JObject>();
+
+        private Guid _ID;
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="json"></param>
+        public void Load(String json)
+        {
+            JObject raw_json = JObject.Parse(json);
+
+            // Collect Geometry 
+
+            RhinoApp.WriteLine(raw_json["Geometry"]["_ID"].ToString());
+
+            if (!System.Guid.TryParse(raw_json["Geometry"]["_ID"].ToString(), out this._ID))
+            {
+                RhinoApp.WriteLine("Invalide GUID");
+            }
+
+            this._RawGeometery = (JObject)raw_json["Geometry"];
+
+            // Collect Instances
+
+            Guid instance_id;
+
+            foreach (JObject json_slice in raw_json["Instance"])
+            {
+
+                if (Guid.TryParse(json_slice["_Location"]["_ID"].ToString(), out instance_id))
+                {
+
+                    this._RawInstances.Add(instance_id, (JObject)json_slice["_Location"]);
+
+                }
+
+            }
+
+            // Collect change logs
+
+            foreach (JObject json_slice in raw_json["ChangeLog"])
+            {
+
+                this._RawLog.Add((JObject)json_slice);
+
+            }
+
+        }
+
+        public Dictionary<string, string> GetQuality()
+        {
+
+            Dictionary<string, string> quality = new Dictionary<string, string>();
+
+
+                quality.Add("GeometryAccurassay", this._RawGeometery["Quality"]["GeometryAccurassay"].ToString());
+
+
+            return quality;
+
+        }
+
+    }
+
+
+
 
     static class urEngine
     {
